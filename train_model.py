@@ -11,6 +11,7 @@ import torchvision.transforms as transforms
 import argparse
 
 
+
 #TODO: Import dependencies for Debugging andd Profiling
 
 def test(model, test_loader):
@@ -34,6 +35,11 @@ def net():
     TODO: Complete this function that initializes your model
           Remember to use a pretrained model
     '''
+    
+    model = models.resnet50(pretrained= True)
+    
+    
+    
     pass
 
 def create_data_loaders(data, batch_size):
