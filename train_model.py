@@ -1,5 +1,3 @@
-#TODO: Import your dependencies.
-#For instance, below are some dependencies you might need if you are using Pytorch
 import numpy as np
 import torch
 import torch.nn as nn
@@ -12,6 +10,7 @@ from torchvision.datasets import ImageFolder
 
 import argparse
 
+import time
 
 
 import boto3
@@ -23,13 +22,11 @@ import glob
 import os
 import logging 
 
-#objects for datasset download if we need it
+#objects for dataset download if we need it
 sagemaker_session = sagemaker.Session()
 bucket = 'sagemaker-us-east-1-532709353901'
 dataset_prefix = 'dog-breed-data/'
     
-
-#TODO: Import dependencies for Debugging andd Profiling
 
 from smdebug import modes
 from smdebug.pytorch import get_hook
@@ -57,31 +54,60 @@ def test(model, test_loader, loss_function, device):
             val_loss += loss.item()
             
 
-def train(model, train_loader, criterion, optimizer, epochs, device):
+def train(model, train_loader, valid_loader, loss_function, optimizer, epochs, device):
     '''
-    TODO: Complete this function that can take a model and
-          data loaders for training and will get train the model
-          Remember to include any debugging/profiling hooks that you might need
-    '''
-    model.train()
+    This function conducts training on the fine tuning network.
     
-    if hook:
-        hook.set_mode(modes.TRAIN)
+    It also uses the validation set to report validation statistics as it progresss through each training epoch.
+
+    '''
+    epoch_times = []
+    for epoch in range(epochs):
         
-    for e in range(epoch):
-        running_loss=0
+        model.train()
+    
+        if hook:
+            hook.set_mode(modes.TRAIN)
+    
+        start = time.time()
+    
+        training_loss=0
         correct=0
         for data, target in train_loader:
             data = data.to(device)
             target = target.to(device)
             optimizer.zero_grad()
             pred = model(data)
-            loss = criterion(pred, target)
-            running_loss+=loss
+            loss = loss_function(pred, target)
+            training_loss+=loss
             criterion.backward()
             optimizer.step()
             pred=pred.argmax(dim=1, keepdim=True)
             correct += pred.eq(target.view_as(pred)).sum().item()
+        
+        if hook:
+            hook.set_mode(modes.EVAL)
+        
+        model.eval()
+        validation_loss = 0
+        with torch.no_grad():
+            for data, target in valid_loader:
+                data = data.to(device)
+                target = target.to(device)
+                pred = model(data)
+                
+                loss = loss_function(pred, target)
+                validation_loss += loss
+
+        epoch_time = time.time() - start
+        epoch_times.append(epoch_time)
+        
+        print(f"Epoch {epoch}: train loss {training_loss:.4f}, validation loss {validation.4f}, in {epoch_time:.2f} sec")
+
+    median_epoch_time =  np.percentile(epoch_times, 50)
+    
+    print(median_epoch_time)
+
     
 def net():
     '''
@@ -108,9 +134,17 @@ def net():
     
 def create_data_loaders(data_path, batch_size):
     '''
+    This function creates dataloaders based upon the ImageFolder class in pytorch.
+    
+    This assumes that the model is being trained on images which are "labelled" by being loaded into the relevant directory.
+    
+    Transforms applied are applied after consulting pytorch documentation here - https://pytorch.org/vision/stable/models/generated/torchvision.models.resnet18.html
     
     '''
     
+    
+    transform_means = [0.485, 0.456, 0.406]
+    transform_stds = [0.229, 0.224, 0.225]
     
     #https://pytorch.org/vision/stable/models/generated/torchvision.models.resnet50.html#torchvision.models.resnet
     transform_train = transforms.Compose(
@@ -118,19 +152,19 @@ def create_data_loaders(data_path, batch_size):
                                             transforms.RandomCrop(256, pad_if_needed = True),
                                             transforms.RandomHorizontalFlip(p=0.5),
                                             transforms.ToTensor(),
-                                            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.2023, 0.1994, 0.2010])
+                                            transforms.Normalize(mean=transform_means, std=transform_stds)
                                         ])
     transform_test_valid = transforms.Compose( 
                                              [
                                                  transforms.CenterCrop(256),
                                                  transforms.ToTensor(),
-                                                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.2023, 0.1994, 0.2010])
+                                                 transforms.Normalize(mean=transform_means, std=transform_stds)
                                              ])
     
     
-    train_dataset = ImageFolder(root = './dogImages/train', transform = transform_train)
-    valid_dataset = ImageFolder(root = './dogImages/valid', transform = transform_test_valid)
-    test_dataset = ImageFolder(root = './dogImages/test', transform = transform_test_valid)
+    train_dataset = ImageFolder(root = f'{data_path}/train', transform = transform_train)
+    valid_dataset = ImageFolder(root = f'{data_path}/valid', transform = transform_test_valid)
+    test_dataset = ImageFolder(root = f'{data_path}/test', transform = transform_test_valid)
     
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size = batch_size, shuffle = True)
     valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size = batch_size, shuffle = True)
@@ -138,19 +172,21 @@ def create_data_loaders(data_path, batch_size):
 
     return train_loader, valid_loader, test_loader
 
-  
-    
 
 
 def main(args):
     
+    #get smdebug logging hook
     hook = get_hook(create_if_not_exists = True)
   
+    #initialise model
     model=net()
     
+    #loss and optimiser
     loss_criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adadelta(model.parameters(), args.lr)
     
+    #register loss for debug to track.
     if hook:
         hook.register_loss(loss_criterion)
     
@@ -170,27 +206,21 @@ def main(args):
     #dataset loaders
     train_loader, valid_loader, test_loader = create_data_loaders('./dogImages', args.batch_size)
     
-    '''
-    TODO: Call the train function to start training your model
-    Remember that you will need to set up a way to get training data from S3
-    '''
-    train(model, train_loader, loss_criterion, optimizer, args.epoch, device)
+    #train
+    train(model, train_loader, valid_loader, loss_criterion, optimizer, args.epoch, device)
     
-    '''
-    TODO: Test the model to see its accuracy
-    '''
+    #test
     test(model, test_loader, loss_criterion, device)
     
-    '''
-    TODO: Save the trained model
-    '''
-    torch.save(model, path)
+    #save the model - using state dict 
+    model_save_path = 'model.pth'
+    torch.save(model.to(torch.device('cpu')).state_dict(), model_save_path)
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser()                 
     
-    
-    parser.add_argument("--batch_size", type=int, default=)
+    #for the moment, only intersted in batch_size, epoch and learning rate. 
+    parser.add_argument("--batch_size", type=int, default=20)
     parser.add_argument("--epoch", type=int, default=10)
     parser.add_argument("--lr", type = float, default =1e-3)
     
