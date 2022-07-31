@@ -17,6 +17,9 @@ import os
 import logging 
 import sys
 import json
+from PIL import ImageFile
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
