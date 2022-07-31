@@ -6,39 +6,97 @@ import torchvision
 import torchvision.models as models
 import torchvision.transforms as transforms
 from torchvision.datasets import ImageFolder
-
-
 import argparse
-
 import time
-
-
 import boto3
 import sagemaker
-import pandas as pd 
 import torch 
 import re
 import glob
 import os
 import logging 
+import sys
+import json
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+logger.addHandler(logging.StreamHandler(sys.stdout))
+
+def test(model, test_loader, loss_function, device):
+    '''
+    This functions conducts the test routine. 
+    '''
+    
+    model.eval()
+    
+    test_loss = 0 
+    
+    with torch.no_grad():
+        for data, target in test_loader:
+            data = data.to(device)
+            target = data.to(device)
+            outputs = model(data)
+            loss = loss_function(outputs, targets)
+            test_loss += loss.item()
+            
+    
+    average_test_loss = test_loss/len(test_loader)
+    
+    logger.info(f'Average test loss: {average_test_loss}')
 
 
+def train(model, train_loader, valid_loader, loss_function, optimizer, epochs, device):
+    '''
+    This function conducts training on the fine tuning network.
+    
+    It also uses the validation set to report validation statistics as it progresss through each training epoch.
 
-def test(model, test_loader):
     '''
-    TODO: Complete this function that can take a model and a 
-          testing data loader and will get the test accuray/loss of the model
-          Remember to include any debugging/profiling hooks that you might need
-    '''
-    pass
+    epoch_times = []
+    for epoch in range(epochs):
+        
+        model.train()
+    
+        start = time.time()
+    
+        training_loss=0
+        correct=0
+        for data, target in train_loader:
+            data = data.to(device)
+            target = target.to(device)
+            optimizer.zero_grad()
+            pred = model(data)
+            loss = loss_function(pred, target)
+            training_loss+=loss
+            loss.backward()
+            optimizer.step()
+            pred=pred.argmax(dim=1, keepdim=True)
+            correct += pred.eq(target.view_as(pred)).sum().item()
+        
+        average_training_loss = training_loss/len(train_loader)
+        
+        
+        model.eval()
+        validation_loss = 0
+        with torch.no_grad():
+            for data, target in valid_loader:
+                data = data.to(device)
+                target = target.to(device)
+                pred = model(data)
+                
+                loss = loss_function(pred, target)
+                validation_loss += loss
 
-def train(model, train_loader, criterion, optimizer):
-    '''
-    TODO: Complete this function that can take a model and
-          data loaders for training and will get train the model
-          Remember to include any debugging/profiling hooks that you might need
-    '''
-    pass
+        epoch_time = time.time() - start
+        epoch_times.append(epoch_time)
+        
+        average_validation_loss = validation_loss/len(valid_loader)
+        
+        logger.info(f"Epoch {epoch}: Average train loss {average_training_loss:.4f}, Average validation loss {average_validation_loss:.4f}, in {epoch_time:.2f} sec")
+
+    median_epoch_time =  np.percentile(epoch_times, 50)
+    
+    print(median_epoch_time)
     
 def net():
     '''
@@ -71,8 +129,8 @@ def create_data_loaders(data_dir, batch_size):
     Transforms applied are applied after consulting pytorch documentation here - https://pytorch.org/vision/stable/models/generated/torchvision.models.resnet18.html
     
     '''
-    
-    
+    logger.info('Getting Data Loaders')
+        
     transform_means = [0.485, 0.456, 0.406]
     transform_stds = [0.229, 0.224, 0.225]
     
@@ -91,6 +149,7 @@ def create_data_loaders(data_dir, batch_size):
                                                  transforms.Normalize(mean=transform_means, std=transform_stds)
                                              ])
     
+    logger.info('Reading data...')
     
     train_dataset = ImageFolder(root = f'{data_dir}/train', transform = transform_train)
     valid_dataset = ImageFolder(root = f'{data_dir}/valid', transform = transform_test_valid)
@@ -104,47 +163,36 @@ def create_data_loaders(data_dir, batch_size):
 
 
 def main(args):
-    '''
-    TODO: Initialize a model by calling the net function
-    '''
+    logger.info('Initialising network...')
     model=net()
+        
+    #loss and optimiser
+    loss_criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adadelta(model.parameters(), args.lr)
     
-    '''
-    TODO: Create your loss and optimizer
-    '''
-    loss_criterion = None
-    optimizer = None
+    #we in gpu land?
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
     
+    #push model to device
+    model = model.to(device)
     
     #dataset loaders - according to this - https://docs.aws.amazon.com/sagemaker/latest/dg/model-access-training-data.html
-    
     #data is copied to
     #/opt/ml/input/data/training-channel
-    train_loader, valid_loader, test_loader = create_data_loaders('/opt/ml/input/data/training-channel', args.batch_size)
+    train_loader, valid_loader, test_loader = create_data_loaders(args.data_dir, args.batch_size)
     
-    '''
-    TODO: Call the train function to start training your model
-    Remember that you will need to set up a way to get training data from S3
+    model=train(model, train_loader, valid_loader, loss_criterion, optimizer, args.epochs, device)
     
-    so according to this - https://docs.aws.amazon.com/sagemaker/latest/dg/model-access-training-data.html
+    test(model, test_loader, loss_criterion, device)
     
-    data is copied to
-    /opt/ml/input/data/training-channel
-    '''
+    #save the model - using state dict 
+    model_save_path = os.path.join(args.model_dir, 'model.pth')
     
+    torch.save(model.to(torch.device('cpu')).state_dict(), model_save_path)
     
-    
-    model=train(model, train_loader, loss_criterion, optimizer)
-    
-    '''
-    TODO: Test the model to see its accuracy
-    '''
-    test(model, test_loader, criterion)
-    
-    '''
-    TODO: Save the trained model
-    '''
-    torch.save(model, path)
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
@@ -157,6 +205,7 @@ if __name__=='__main__':
         metavar="N",
         help="input batch size for training (default: 64)",
     )
+    
     parser.add_argument(
         "--epochs",
         type=int,
@@ -164,6 +213,7 @@ if __name__=='__main__':
         metavar="N",
         help="number of epochs to train (default: 10)",
     )
+    
     parser.add_argument(
         "--lr", type=float, default=0.01, metavar="LR", help="learning rate (default: 0.01)"
     )
@@ -174,5 +224,10 @@ if __name__=='__main__':
     parser.add_argument("--model-dir", type=str, default=os.environ["SM_MODEL_DIR"])
     parser.add_argument("--data-dir", type=str, default=os.environ["SM_CHANNEL_TRAINING"])
     parser.add_argument("--num-gpus", type=int, default=os.environ["SM_NUM_GPUS"])
+    
+    args = parser.parse_args()
+    
+    #for key, value in args.items():
+    #    logger.info(f'{key}:{value}')
 
-    main(parser.parse_args())
+    main(args)

@@ -33,9 +33,7 @@ from smdebug.pytorch import get_hook
 
 def test(model, test_loader, loss_function, device):
     '''
-    TODO: Complete this function that can take a model and a 
-          testing data loader and will get the test accuray/loss of the model
-          Remember to include any debugging/profiling hooks that you might need
+    This functions conducts the test routine. 
     '''
     
     model.eval()
@@ -43,7 +41,7 @@ def test(model, test_loader, loss_function, device):
     if hook:
         hook.set_mode(modes.EVAL)
     
-    validation_loss = 0 
+    test_loss = 0 
     
     with torch.no_grad():
         for data, target in test_loader:
@@ -51,7 +49,12 @@ def test(model, test_loader, loss_function, device):
             target = data.to(device)
             outputs = model(data)
             loss = loss_function(outputs, targets)
-            val_loss += loss.item()
+            test_loss += loss.item()
+            
+    
+    average_test_loss = test_loss/len(test_loader)
+    
+    print(f'Average test loss: {average_test_loss}')
             
 
 def train(model, train_loader, valid_loader, loss_function, optimizer, epochs, device):
@@ -85,6 +88,8 @@ def train(model, train_loader, valid_loader, loss_function, optimizer, epochs, d
             pred=pred.argmax(dim=1, keepdim=True)
             correct += pred.eq(target.view_as(pred)).sum().item()
         
+        average_training_loss = training_loss/len(train_loader)
+        
         if hook:
             hook.set_mode(modes.EVAL)
         
@@ -102,7 +107,9 @@ def train(model, train_loader, valid_loader, loss_function, optimizer, epochs, d
         epoch_time = time.time() - start
         epoch_times.append(epoch_time)
         
-        print(f"Epoch {epoch}: train loss {training_loss:.4f}, validation loss {validation.4f}, in {epoch_time:.2f} sec")
+        average_validation_loss = validation_loss/len(valid_loader)
+        
+        print(f"Epoch {epoch}: Average training loss {average_training_loss:.4f}, Average validation loss {average_validation_loss.4f}, in {epoch_time:.2f} sec")
 
     median_epoch_time =  np.percentile(epoch_times, 50)
     
