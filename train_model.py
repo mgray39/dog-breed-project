@@ -22,6 +22,10 @@ import glob
 import os
 import logging 
 
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+
 #objects for dataset download if we need it
 boto3_session = boto3.session.Session(region_name='us-east-1')
 sagemaker_session = sagemaker.Session(boto3_session)
