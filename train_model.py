@@ -23,7 +23,8 @@ import os
 import logging 
 
 #objects for dataset download if we need it
-sagemaker_session = sagemaker.Session()
+boto3_session = boto3.session.Session(region_name='us-east-1')
+sagemaker_session = sagemaker.Session(boto3_session)
 bucket = 'sagemaker-us-east-1-532709353901'
 dataset_prefix = 'dog-breed-data/'
     
@@ -31,7 +32,7 @@ dataset_prefix = 'dog-breed-data/'
 from smdebug import modes
 from smdebug.pytorch import get_hook
 
-def test(model, test_loader, loss_function, device):
+def test(model, test_loader, loss_function, device, hook):
     '''
     This functions conducts the test routine. 
     '''
@@ -46,9 +47,9 @@ def test(model, test_loader, loss_function, device):
     with torch.no_grad():
         for data, target in test_loader:
             data = data.to(device)
-            target = data.to(device)
+            target = target.to(device)
             outputs = model(data)
-            loss = loss_function(outputs, targets)
+            loss = loss_function(outputs, target)
             test_loss += loss.item()
             
     
@@ -57,7 +58,7 @@ def test(model, test_loader, loss_function, device):
     print(f'Average test loss: {average_test_loss}')
             
 
-def train(model, train_loader, valid_loader, loss_function, optimizer, epochs, device):
+def train(model, train_loader, valid_loader, loss_function, optimizer, epochs, device, hook):
     '''
     This function conducts training on the fine tuning network.
     
@@ -83,7 +84,7 @@ def train(model, train_loader, valid_loader, loss_function, optimizer, epochs, d
             pred = model(data)
             loss = loss_function(pred, target)
             training_loss+=loss
-            criterion.backward()
+            loss.backward()
             optimizer.step()
             pred=pred.argmax(dim=1, keepdim=True)
             correct += pred.eq(target.view_as(pred)).sum().item()
@@ -109,11 +110,13 @@ def train(model, train_loader, valid_loader, loss_function, optimizer, epochs, d
         
         average_validation_loss = validation_loss/len(valid_loader)
         
-        print(f"Epoch {epoch}: Average training loss {average_training_loss:.4f}, Average validation loss {average_validation_loss.4f}, in {epoch_time:.2f} sec")
+        print(f"Epoch {epoch}: Average training loss {average_training_loss:.4f}, Average validation loss {average_validation_loss:.4f}, in {epoch_time:.2f} sec")
 
     median_epoch_time =  np.percentile(epoch_times, 50)
     
     print(median_epoch_time)
+    
+    return model
 
     
 def net():
@@ -214,10 +217,10 @@ def main(args):
     train_loader, valid_loader, test_loader = create_data_loaders('./dogImages', args.batch_size)
     
     #train
-    train(model, train_loader, valid_loader, loss_criterion, optimizer, args.epoch, device)
+    model = train(model, train_loader, valid_loader, loss_criterion, optimizer, args.epochs, device, hook)
     
     #test
-    test(model, test_loader, loss_criterion, device)
+    test(model, test_loader, loss_criterion, device, hook)
     
     #save the model - using state dict 
     model_save_path = 'model.pth'
@@ -228,7 +231,7 @@ if __name__=='__main__':
     
     #for the moment, only intersted in batch_size, epoch and learning rate. 
     parser.add_argument("--batch_size", type=int, default=20)
-    parser.add_argument("--epoch", type=int, default=10)
+    parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--lr", type = float, default =1e-3)
     
     args=parser.parse_args()
