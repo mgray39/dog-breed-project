@@ -37,15 +37,17 @@ def test(model, test_loader, loss_function, device):
     with torch.no_grad():
         for data, target in test_loader:
             data = data.to(device)
-            target = data.to(device)
+            target = target.to(device)
             outputs = model(data)
-            loss = loss_function(outputs, targets)
+            loss = loss_function(outputs, target)
             test_loss += loss.item()
             
     
     average_test_loss = test_loss/len(test_loader)
     
     logger.info(f'Average test loss: {average_test_loss}')
+    
+    return model
 
 
 def train(model, train_loader, valid_loader, loss_function, optimizer, epochs, device):
@@ -100,6 +102,8 @@ def train(model, train_loader, valid_loader, loss_function, optimizer, epochs, d
     median_epoch_time =  np.percentile(epoch_times, 50)
     
     print(median_epoch_time)
+    
+    return model
     
 def net():
     '''
@@ -187,9 +191,9 @@ def main(args):
     #/opt/ml/input/data/training-channel
     train_loader, valid_loader, test_loader = create_data_loaders(args.data_dir, args.batch_size)
     
-    model=train(model, train_loader, valid_loader, loss_criterion, optimizer, args.epochs, device)
+    model = train(model, train_loader, valid_loader, loss_criterion, optimizer, args.epochs, device)
     
-    test(model, test_loader, loss_criterion, device)
+    model = test(model, test_loader, loss_criterion, device)
     
     #save the model - using state dict 
     model_save_path = os.path.join(args.model_dir, 'model.pth')
