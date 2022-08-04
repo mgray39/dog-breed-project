@@ -27,9 +27,9 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 #objects for dataset download if we need it
-boto3_session = boto3.session.Session(region_name='us-east-1')
+boto3_session = boto3.session.Session(region_name='ap-southeast-2')
 sagemaker_session = sagemaker.Session(boto3_session)
-bucket = 'sagemaker-us-east-1-532709353901'
+bucket = 'sagemaker-ap-southeast-2-494389057463'
 dataset_prefix = 'dog-breed-data/'
     
 
