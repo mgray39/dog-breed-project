@@ -32,7 +32,7 @@ sagemaker_session = sagemaker.Session(boto3_session)
 bucket = 'sagemaker-ap-southeast-2-494389057463'
 dataset_prefix = 'dog-breed-data/'
     
-
+import smdebug.pytorch as smd
 from smdebug import modes
 from smdebug.pytorch import get_hook
 
@@ -191,18 +191,19 @@ def create_data_loaders(data_path, batch_size):
 def main(args):
     
     #get smdebug logging hook
-    hook = get_hook(create_if_not_exists = True)
+    hook = smd.Hook.create_from_json_file()
   
     #initialise model
     model=net()
     
+    
     #loss and optimiser
     loss_criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adadelta(model.parameters(), args.lr)
-    
-    #register loss for debug to track.
-    if hook:
-        hook.register_loss(loss_criterion)
+  
+    hook.register_hook(model)
+    hook.register_loss(loss_criterion)
+  
     
     #check if you have the dog images - if not download them
     if not os.path.exists('./dogImages'):
