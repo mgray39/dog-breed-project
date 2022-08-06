@@ -6,7 +6,7 @@ import torchvision
 import torchvision.models as models
 import torchvision.transforms as transforms
 from torchvision.datasets import ImageFolder
-
+import os
 
 import argparse
 
@@ -19,8 +19,8 @@ import pandas as pd
 import torch 
 import re
 import glob
-import os
 import logging 
+
 
 from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -35,6 +35,7 @@ dataset_prefix = 'dog-breed-data/'
 import smdebug.pytorch as smd
 from smdebug import modes
 from smdebug.pytorch import get_hook
+
 
 def test(model, test_loader, loss_function, device, hook):
     '''
@@ -187,6 +188,7 @@ def create_data_loaders(data_path, batch_size):
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size = batch_size, shuffle = True)
 
     return train_loader, valid_loader, test_loader
+
 
 
 

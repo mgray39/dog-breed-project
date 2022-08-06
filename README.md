@@ -95,8 +95,42 @@ The results of the profiling report appear to indicate that the usage of the ins
 
 ## Model Deployment
 
+In order to deploy the model, I configured a script called deployment.py. This script contains three functions which are required by the Pytorch deployment:
 
-**TODO** Remember to provide a screenshot of the deployed active endpoint in Sagemaker.
+1. model_fn
+  - this function returns the model
+2. input_fn
+  - this function processes input to the end point. In here I have implemented the required transform so that all that needs to be done by the user is to open the image and send that as a payload to the end point.
+3. predict_fn
+  - this function takes the image passed by the input_fn and applies the same transform as the hpo.py and train_model.py scripts. This transform is based upon the pytorch resnet18 documentation and the model is asked to make a prediction.
+
+
+The following is the code I used in [sagemaker](train_and_deploy.ipynb) to call the endpoint.
+
+```python
+from sagemaker.serializers import IdentitySerializer
+import numpy as np
+
+import sagemaker 
+
+sagemaker_session = sagemaker.Session()
+
+predictor.serializer = IdentitySerializer("image/jpeg")
+with open("img/Bernese_mountain_dog_01651.jpg", "rb") as f:
+    payload = f.read()
+
+inference = predictor.predict(payload)
+
+
+file_list = sagemaker_session.list_s3_files(bucket=bucket, key_prefix='dog-breed-data/test')
+class_list = np.unique([file.split('/')[2] for file in file_list])
+
+class_list[inference.argmax()]
+
+```
+
+The functioning endpoint looks like this. 
+![sagemaker functioning](img/endpoint_sagemaker_running.png)
 
 ## Standout Suggestions
 Absolutely not.
