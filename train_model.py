@@ -60,6 +60,8 @@ def test(model, test_loader, loss_function, device, hook):
     average_test_loss = test_loss/len(test_loader)
     
     print(f'Average test loss: {average_test_loss}')
+    
+    return model, hook
             
 
 def train(model, train_loader, valid_loader, loss_function, optimizer, epochs, device, hook):
@@ -120,7 +122,7 @@ def train(model, train_loader, valid_loader, loss_function, optimizer, epochs, d
     
     print(median_epoch_time)
     
-    return model
+    return model, hook
 
     
 def net():
@@ -222,10 +224,10 @@ def main(args):
     train_loader, valid_loader, test_loader = create_data_loaders('./dogImages', args.batch_size)
     
     #train
-    model = train(model, train_loader, valid_loader, loss_criterion, optimizer, args.epochs, device, hook)
+    model, hook = train(model, train_loader, valid_loader, loss_criterion, optimizer, args.epochs, device, hook)
     
     #test
-    test(model, test_loader, loss_criterion, device, hook)
+    #model, hook = test(model, test_loader, loss_criterion, device, hook)
     
     #save the model - using state dict 
     model_save_path = 'model.pth'
