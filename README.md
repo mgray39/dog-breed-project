@@ -1,6 +1,6 @@
 # Dog Breed Classification using AWS SageMaker
 
-![Bernese Mountain Dogs FTW](Bernese_mountain_dog_01651.jpg)
+![Bernese Mountain Dogs FTW](img/Bernese_mountain_dog_01651.jpg)
 
 This project involves the creation of an image classifier to enable dog breeds to be identified. 
 
@@ -45,6 +45,24 @@ Remember that your README should:
 - Tune at least two hyperparameters
 - Retrieve the best best hyperparameters from all your training jobs
 
+Referencing the above, although it makes no sense to include in a readme for a project the following images, I include them here to satisfy the marking rubric:
+
+Completed hyperparameter training job:
+
+![hyperparameter training job](img/completed_training_job.png)
+
+Individual training jobs associated with that process.
+
+![individual hpo training jobs](img/individual_completed_training_jobs.png)
+
+The parameters from the hpo training job that the system deemed optimal
+
+![best hyperparameters](img/best_hpo_training.png)
+
+I also include the following screenshot from the cloudwatch logs:
+
+![cloud watch logs](img/cloudwatch_logs.png)
+
 ## Debugging and Profiling
 
 In order to finetune the model, I have set a number of sagemaker rule configs and two profiling rules.
@@ -71,15 +89,15 @@ The outputs from this report can be used to determine if changes need to made to
 
 
 ### Results
-**TODO**: What are the results/insights did you get by profiling/debugging your model?
+The model appears to have a decreasing loss function across the training cycle for both the training and test parameters. 
 
-**TODO** Remember to provide the profiler html/pdf file in your submission.
-
+The results of the profiling report appear to indicate that the usage of the instance is appropriate - albeit it might be possible to use a less powerful GPU as the current model is not heavily using the current instance. However, the instance type I have selected is among one of the smallest possible that is still configured with a GPU.
 
 ## Model Deployment
-**TODO**: Give an overview of the deployed model and instructions on how to query the endpoint with a sample input.
+
 
 **TODO** Remember to provide a screenshot of the deployed active endpoint in Sagemaker.
 
 ## Standout Suggestions
-**TODO (Optional):** This is where you can provide information about any standout suggestions that you have attempted.
+Absolutely not.
+

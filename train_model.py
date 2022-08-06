@@ -230,8 +230,10 @@ def main(args):
     #model, hook = test(model, test_loader, loss_criterion, device, hook)
     
     #save the model - using state dict 
-    model_save_path = 'model.pth'
+    model_save_path = os.path.join(args.model_dir, 'model.pth')
+    
     torch.save(model.to(torch.device('cpu')).state_dict(), model_save_path)
+    
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser()                 
@@ -240,6 +242,7 @@ if __name__=='__main__':
     parser.add_argument("--batch_size", type=int, default=20)
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--lr", type = float, default =1e-3)
+    parser.add_argument("--model-dir", type=str, default=os.environ["SM_MODEL_DIR"])
     
     args=parser.parse_args()
     
